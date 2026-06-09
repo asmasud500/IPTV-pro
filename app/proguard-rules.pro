@@ -1,0 +1,3 @@
+-keep class com.iptvpro.app.** { *; }
+-keepclassmembers class com.iptvpro.app.** { *; }
+-dontwarn com.iptvpro.app.**

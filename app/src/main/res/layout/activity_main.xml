@@ -9,8 +9,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar">
+        android:layout_height="wrap_content">
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
@@ -18,9 +17,7 @@
             android:layout_height="?attr/actionBarSize"
             android:background="@color/surface_dark"
             app:title="IPTV Pro"
-            app:titleTextColor="@color/text_primary"
-            app:subtitle="@string/app_subtitle"
-            app:subtitleTextColor="@color/text_secondary" />
+            app:titleTextColor="@color/text_primary" />
 
         <TextView
             android:id="@+id/tvChannelCount"

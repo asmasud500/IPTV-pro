@@ -38,19 +38,38 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        id: build
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build_output.txt; exit ${PIPESTATUS[0]}
         env:
-          GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx2g'
+          GRADLE_OPTS: '-Dorg.gradle.daemon=false -Xmx2g'
+
+      - name: Show errors on failure
+        if: failure()
+        run: |
+          echo "=== BUILD ERRORS ===" >> $GITHUB_STEP_SUMMARY
+          grep -E "^e:|error:|Error |FAILED|Exception|Unresolved|BUILD FAILED" build_output.txt | head -50 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -100 build_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: build_output.txt
+          retention-days: 7
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: IPTV-Pro-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Build Summary
+      - name: Build Success Summary
+        if: success()
         run: |
-          echo "## ✅ Build Success!" >> $GITHUB_STEP_SUMMARY
-          echo "APK: \`app/build/outputs/apk/debug/app-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
           ls -lh app/build/outputs/apk/debug/app-debug.apk

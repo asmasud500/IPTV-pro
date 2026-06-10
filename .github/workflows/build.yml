@@ -39,25 +39,35 @@ jobs:
 
       - name: Build Debug APK
         id: build
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build_output.txt; exit ${PIPESTATUS[0]}
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build_full.txt
         env:
           GRADLE_OPTS: '-Dorg.gradle.daemon=false -Xmx2g'
 
-      - name: Show errors on failure
+      - name: Report errors
         if: failure()
         run: |
-          echo "=== BUILD ERRORS ===" >> $GITHUB_STEP_SUMMARY
-          grep -E "^e:|error:|Error |FAILED|Exception|Unresolved|BUILD FAILED" build_output.txt | head -50 >> $GITHUB_STEP_SUMMARY || true
+          echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -100 build_output.txt >> $GITHUB_STEP_SUMMARY
+          grep -E "^e:|^w:|error:|Error |FAILED|Exception|Unresolved reference|BUILD FAILED|Could not|> Task" /tmp/build_full.txt | head -80 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### Last 60 lines" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -60 /tmp/build_full.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Also create a gist-friendly output file
+          grep -E "^e:|error:|Error |FAILED|Exception|Unresolved|BUILD FAILED" /tmp/build_full.txt > /tmp/errors_only.txt || true
+          tail -80 /tmp/build_full.txt >> /tmp/errors_only.txt
 
-      - name: Upload build log on failure
+      - name: Upload error log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-error-log
-          path: build_output.txt
+          name: build-errors
+          path: |
+            /tmp/errors_only.txt
+            /tmp/build_full.txt
           retention-days: 7
 
       - name: Upload APK
@@ -68,8 +78,9 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Build Success Summary
+      - name: Build Success
         if: success()
         run: |
           echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
           ls -lh app/build/outputs/apk/debug/app-debug.apk
+          echo "APK size: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)" >> $GITHUB_STEP_SUMMARY

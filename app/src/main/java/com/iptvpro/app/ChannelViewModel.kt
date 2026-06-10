@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 class ChannelViewModel : ViewModel() {
 
@@ -23,7 +24,11 @@ class ChannelViewModel : ViewModel() {
 
     private var allChannels = listOf<Channel>()
 
-    private val client = OkHttpClient.Builder().build()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
 
     fun loadChannels() {
         viewModelScope.launch {
@@ -44,6 +49,7 @@ class ChannelViewModel : ViewModel() {
                 _channels.value = allChannels
             } catch (e: Exception) {
                 _error.value = "চ্যানেল লোড হয়নি: ${e.message}"
+                _channels.value = emptyList()
             } finally {
                 _loading.value = false
             }
@@ -51,17 +57,13 @@ class ChannelViewModel : ViewModel() {
     }
 
     fun search(query: String) {
-        if (query.isBlank()) {
-            _channels.value = allChannels
-        } else {
-            val q = query.lowercase()
-            _channels.value = allChannels.filter {
+        val list = if (query.isBlank()) allChannels
+        else {
+            val q = query.trim().lowercase()
+            allChannels.filter {
                 it.name.lowercase().contains(q) || it.group.lowercase().contains(q)
             }
         }
-    }
-
-    fun getChannelsByGroup(): Map<String, List<Channel>> {
-        return (_channels.value ?: emptyList()).groupBy { it.group }
+        _channels.value = list
     }
 }

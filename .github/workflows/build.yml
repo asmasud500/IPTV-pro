@@ -38,37 +38,37 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        id: build
-        run: |
-          set -o pipefail
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build_full.txt
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.txt; exit ${PIPESTATUS[0]}
         env:
           GRADLE_OPTS: '-Dorg.gradle.daemon=false -Xmx2g'
 
-      - name: Report errors
+      - name: Post errors to Gist
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ERRORS=$(grep -E "^e:|error:|Error |FAILED|Exception|Unresolved reference|BUILD FAILED|> Task :.*FAILED" /tmp/build.txt | head -60 || true)
+          TAIL=$(tail -80 /tmp/build.txt)
+          CONTENT=$(printf "=== ERRORS ===\n%s\n\n=== LAST 80 LINES ===\n%s" "$ERRORS" "$TAIL")
+          curl -s -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/gists" \
+            -d "$(python3 -c "
+import json,sys
+content = open('/tmp/build.txt').read()
+errors = [l for l in content.split('\n') if any(x in l for x in ['error:','Error ','FAILED','Exception','Unresolved','BUILD FAILED'])]
+output = '=== KEY ERRORS ===\n' + '\n'.join(errors[-50:]) + '\n\n=== LAST 80 LINES ===\n' + '\n'.join(content.split('\n')[-80:])
+print(json.dumps({
+  'description': 'IPTV-Pro Build Error Log',
+  'public': False,
+  'files': {'build_error.txt': {'content': output}}
+}))
+")" > /tmp/gist_response.json
+          GIST_URL=$(python3 -c "import json; d=json.load(open('/tmp/gist_response.json')); print(d.get('html_url', d.get('id','ERROR')))")
+          echo "Gist: $GIST_URL"
           echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          grep -E "^e:|^w:|error:|Error |FAILED|Exception|Unresolved reference|BUILD FAILED|Could not|> Task" /tmp/build_full.txt | head -80 >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "### Last 60 lines" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -60 /tmp/build_full.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          # Also create a gist-friendly output file
-          grep -E "^e:|error:|Error |FAILED|Exception|Unresolved|BUILD FAILED" /tmp/build_full.txt > /tmp/errors_only.txt || true
-          tail -80 /tmp/build_full.txt >> /tmp/errors_only.txt
-
-      - name: Upload error log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-errors
-          path: |
-            /tmp/errors_only.txt
-            /tmp/build_full.txt
-          retention-days: 7
+          echo "Error log: $GIST_URL" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload APK
         if: success()
@@ -81,6 +81,6 @@ jobs:
       - name: Build Success
         if: success()
         run: |
-          echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-          echo "APK size: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          APK_SIZE=$(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)
+          echo "## ✅ Build Successful! APK size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+          ls -lh app/build/outputs/apk/debug/

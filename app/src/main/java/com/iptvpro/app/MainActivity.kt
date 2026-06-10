@@ -1,6 +1,9 @@
 package com.iptvpro.app
 
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.View
@@ -23,10 +26,15 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setSupportActionBar(binding.toolbar)
+        supportActionBar?.title = "IPTV Pro"
 
         adapter = ChannelAdapter { channel ->
+            if (!isNetworkAvailable()) {
+                Snackbar.make(binding.root, "ইন্টারনেট সংযোগ নেই", Snackbar.LENGTH_SHORT).show()
+                return@ChannelAdapter
+            }
             val intent = Intent(this, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL, channel.url)
+                putExtra(PlayerActivity.EXTRA_URL,  channel.url)
                 putExtra(PlayerActivity.EXTRA_NAME, channel.name)
                 putExtra(PlayerActivity.EXTRA_LOGO, channel.logo)
             }
@@ -35,26 +43,27 @@ class MainActivity : AppCompatActivity() {
 
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
+        binding.recyclerView.setHasFixedSize(true)
 
-        binding.swipeRefresh.setOnRefreshListener {
-            viewModel.loadChannels()
-        }
+        binding.swipeRefresh.setColorSchemeResources(R.color.accent_blue)
+        binding.swipeRefresh.setOnRefreshListener { viewModel.loadChannels() }
 
         viewModel.channels.observe(this) { channels ->
             adapter.submitList(channels)
-            binding.tvEmpty.visibility = if (channels.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvChannelCount.text = "${channels.size} চ্যানেল"
+            binding.tvEmpty.visibility    = if (channels.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvChannelCount.text   = "${channels.size} চ্যানেল"
         }
 
         viewModel.loading.observe(this) { isLoading ->
             binding.swipeRefresh.isRefreshing = isLoading
-            binding.progressBar.visibility = if (isLoading && adapter.itemCount == 0) View.VISIBLE else View.GONE
+            binding.progressBar.visibility =
+                if (isLoading && adapter.itemCount == 0) View.VISIBLE else View.GONE
         }
 
         viewModel.error.observe(this) { error ->
             error?.let {
                 Snackbar.make(binding.root, it, Snackbar.LENGTH_LONG)
-                    .setAction("আবার চেষ্টা করুন") { viewModel.loadChannels() }
+                    .setAction("আবার চেষ্টা") { viewModel.loadChannels() }
                     .show()
             }
         }
@@ -64,16 +73,28 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        val searchItem = menu.findItem(R.id.action_search)
-        val searchView = searchItem.actionView as SearchView
-        searchView.queryHint = "চ্যানেল খুঁজুন..."
+        val searchItem  = menu.findItem(R.id.action_search)
+        val searchView  = searchItem.actionView as SearchView
+        searchView.queryHint = getString(R.string.search_hint)
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?) = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                viewModel.search(newText ?: "")
+            override fun onQueryTextChange(text: String?): Boolean {
+                viewModel.search(text ?: "")
                 return true
             }
         })
         return true
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isNetworkAvailable(): Boolean {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val nw = cm.activeNetwork ?: return false
+            val cap = cm.getNetworkCapabilities(nw) ?: return false
+            cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } else {
+            cm.activeNetworkInfo?.isConnected == true
+        }
     }
 }

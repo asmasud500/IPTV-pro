@@ -6,12 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <!-- Declare that the app does NOT require a camera or telephony
-         so it shows up on tablets, TV-adjacent, and WiFi-only devices -->
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.camera"        android:required="false" />
+    <uses-feature android:name="android.hardware.telephony"     android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen"   android:required="false" />
 
     <application
         android:name="androidx.multidex.MultiDexApplication"
@@ -44,7 +41,8 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.IPTVPro.Player"
-            android:launchMode="singleTop" />
+            android:launchMode="singleTop"
+            android:supportsPictureInPicture="true" />
 
     </application>
 </manifest>

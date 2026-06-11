@@ -11,6 +11,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.chip.Chip
 import com.google.android.material.snackbar.Snackbar
 import com.iptvpro.app.databinding.ActivityMainBinding
 
@@ -28,18 +29,26 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.title = "IPTV Pro"
 
-        adapter = ChannelAdapter { channel ->
-            if (!isNetworkAvailable()) {
-                Snackbar.make(binding.root, "ইন্টারনেট সংযোগ নেই", Snackbar.LENGTH_SHORT).show()
-                return@ChannelAdapter
-            }
-            val intent = Intent(this, PlayerActivity::class.java).apply {
-                putExtra(PlayerActivity.EXTRA_URL,  channel.url)
-                putExtra(PlayerActivity.EXTRA_NAME, channel.name)
-                putExtra(PlayerActivity.EXTRA_LOGO, channel.logo)
-            }
-            startActivity(intent)
-        }
+        adapter = ChannelAdapter(
+            onChannelClick = { channel ->
+                if (!isNetworkAvailable()) {
+                    Snackbar.make(binding.root, "ইন্টারনেট সংযোগ নেই", Snackbar.LENGTH_SHORT).show()
+                    return@ChannelAdapter
+                }
+                startActivity(Intent(this, PlayerActivity::class.java).apply {
+                    putExtra(PlayerActivity.EXTRA_URL,  channel.url)
+                    putExtra(PlayerActivity.EXTRA_NAME, channel.name)
+                    putExtra(PlayerActivity.EXTRA_LOGO, channel.logo)
+                })
+            },
+            onFavoriteClick = { channel ->
+                val added = viewModel.toggleFavorite(channel)
+                val msg = if (added) "⭐ ${channel.name} favorites এ যোগ হয়েছে"
+                          else       "❌ ${channel.name} favorites থেকে সরানো হয়েছে"
+                Snackbar.make(binding.root, msg, Snackbar.LENGTH_SHORT).show()
+            },
+            isFav = { channel -> viewModel.isFavorite(channel) }
+        )
 
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
@@ -48,10 +57,24 @@ class MainActivity : AppCompatActivity() {
         binding.swipeRefresh.setColorSchemeResources(R.color.accent_blue)
         binding.swipeRefresh.setOnRefreshListener { viewModel.loadChannels() }
 
+        // Group filter chips
+        viewModel.groups.observe(this) { groups ->
+            binding.chipGroupFilter.removeAllViews()
+            groups.forEach { group ->
+                val chip = Chip(this).apply {
+                    text = group
+                    isCheckable = true
+                    isChecked = group == "সব"
+                    setOnClickListener { viewModel.filterByGroup(group) }
+                }
+                binding.chipGroupFilter.addView(chip)
+            }
+        }
+
         viewModel.channels.observe(this) { channels ->
             adapter.submitList(channels)
-            binding.tvEmpty.visibility    = if (channels.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvChannelCount.text   = "${channels.size} চ্যানেল"
+            binding.tvEmpty.visibility   = if (channels.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvChannelCount.text  = "${channels.size} চ্যানেল"
         }
 
         viewModel.loading.observe(this) { isLoading ->
@@ -73,11 +96,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        val searchItem  = menu.findItem(R.id.action_search)
-        val searchView  = searchItem.actionView as SearchView
+        val searchView = menu.findItem(R.id.action_search).actionView as SearchView
         searchView.queryHint = getString(R.string.search_hint)
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?) = false
+            override fun onQueryTextSubmit(q: String?) = false
             override fun onQueryTextChange(text: String?): Boolean {
                 viewModel.search(text ?: "")
                 return true
@@ -90,7 +112,7 @@ class MainActivity : AppCompatActivity() {
     private fun isNetworkAvailable(): Boolean {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val nw = cm.activeNetwork ?: return false
+            val nw  = cm.activeNetwork ?: return false
             val cap = cm.getNetworkCapabilities(nw) ?: return false
             cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } else {

@@ -56,9 +56,19 @@
         </LinearLayout>
 
         <ImageView
+            android:id="@+id/btnFavorite"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:padding="6dp"
+            android:src="@drawable/ic_star"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Favorite" />
+
+        <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="4dp"
             android:src="@drawable/ic_play"
             android:tint="@color/accent_blue" />
 

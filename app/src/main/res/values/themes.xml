@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Main theme — DayNight.DarkActionBar পুরানো ও নতুন সব Android এ কাজ করে -->
     <style name="Theme.IPTVPro" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
@@ -9,13 +10,17 @@
         <item name="android:statusBarColor">@color/colorPrimaryDark</item>
         <item name="android:navigationBarColor">@color/colorPrimaryDark</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
+        <!-- Chip style -->
+        <item name="chipStyle">@style/Widget.MaterialComponents.Chip.Filter</item>
     </style>
 
+    <!-- Player theme — fullscreen, no action bar -->
     <style name="Theme.IPTVPro.Player" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/black</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/black</item>
         <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
     </style>
 
 </resources>

@@ -1,11 +1,10 @@
 package com.iptvpro.app
 
-import android.app.PictureInPictureParams
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
@@ -30,9 +29,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
-    private var streamUrl   = ""
-    private var retryCount  = 0
-    private val maxRetries  = 5
+    private var streamUrl  = ""
+    private var retryCount = 0
+    private val maxRetries = 5
     private val retryHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,7 +49,8 @@ class PlayerActivity : AppCompatActivity() {
         binding.tvChannelName.text = channelName
 
         if (logoUrl.isNotEmpty()) {
-            Glide.with(this).load(logoUrl)
+            Glide.with(this)
+                .load(logoUrl)
                 .placeholder(R.drawable.ic_tv_placeholder)
                 .error(R.drawable.ic_tv_placeholder)
                 .into(binding.imgLogo)
@@ -58,10 +58,12 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
 
-        // PiP button — only on Android 8+
+        // PiP — শুধু Android 8.0+ এ
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             binding.btnPip.visibility = View.VISIBLE
-            binding.btnPip.setOnClickListener { enterPiP() }
+            binding.btnPip.setOnClickListener { enterPiPSafe() }
+        } else {
+            binding.btnPip.visibility = View.GONE
         }
 
         initPlayer()
@@ -74,11 +76,11 @@ class PlayerActivity : AppCompatActivity() {
 
             val dsFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(
-                    "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}) " +
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                    "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; Mobile) " +
+                    "AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36"
                 )
-                .setConnectTimeoutMs(15_000)
-                .setReadTimeoutMs(20_000)
+                .setConnectTimeoutMs(20_000)
+                .setReadTimeoutMs(25_000)
                 .setAllowCrossProtocolRedirects(true)
 
             exo.setMediaSource(
@@ -99,7 +101,7 @@ class PlayerActivity : AppCompatActivity() {
                         Player.STATE_READY -> {
                             binding.progressBuffering.visibility = View.GONE
                             binding.tvStatus.text = "● LIVE"
-                            retryCount = 0               // reset on success
+                            retryCount = 0
                         }
                         else -> binding.progressBuffering.visibility = View.GONE
                     }
@@ -109,29 +111,38 @@ class PlayerActivity : AppCompatActivity() {
                     binding.progressBuffering.visibility = View.GONE
                     if (retryCount < maxRetries) {
                         retryCount++
-                        val delay = (retryCount * 3_000L).coerceAtMost(15_000L)
+                        val delayMs = (retryCount * 3_000L).coerceAtMost(15_000L)
                         binding.tvStatus.text = "পুনরায় চেষ্টা ($retryCount/$maxRetries)..."
                         binding.progressBuffering.visibility = View.VISIBLE
-                        retryHandler.postDelayed({ initPlayer() }, delay)
+                        retryHandler.postDelayed({ initPlayer() }, delayMs)
                     } else {
                         binding.tvStatus.text = "⚠ স্ট্রিম চালু হচ্ছে না"
+                        binding.progressBuffering.visibility = View.GONE
                     }
                 }
             })
         }
     }
 
-    private fun enterPiP() {
+    private fun enterPiPSafe() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
-            enterPictureInPictureMode(params)
+            try {
+                val params = android.app.PictureInPictureParams.Builder()
+                    .setAspectRatio(android.util.Rational(16, 9))
+                    .build()
+                enterPictureInPictureMode(params)
+            } catch (e: Exception) {
+                // PiP not supported on this device even though API >= 26
+            }
         }
     }
 
-    override fun onPictureInPictureModeChanged(isInPiP: Boolean) {
-        super.onPictureInPictureModeChanged(isInPiP)
+    // API 26+ override — safe because manifest has tools:targetApi="o"
+    override fun onPictureInPictureModeChanged(
+        isInPiP: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPiP, newConfig)
         binding.topBar.visibility = if (isInPiP) View.GONE else View.VISIBLE
     }
 
@@ -154,13 +165,26 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume()  { super.onResume();  hideSystemUI(); player?.play()  }
-    override fun onStop()    { super.onStop();    player?.pause() }
+    override fun onResume() {
+        super.onResume()
+        hideSystemUI()
+        player?.play()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // PiP mode এ থাকলে pause করব না
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) return
+        player?.pause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         retryHandler.removeCallbacksAndMessages(null)
-        player?.release(); player = null
+        player?.release()
+        player = null
     }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemUI()

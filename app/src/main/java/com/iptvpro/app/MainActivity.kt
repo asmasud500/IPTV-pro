@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipDrawable
 import com.google.android.material.snackbar.Snackbar
 import com.iptvpro.app.databinding.ActivityMainBinding
 
@@ -43,8 +44,8 @@ class MainActivity : AppCompatActivity() {
             },
             onFavoriteClick = { channel ->
                 val added = viewModel.toggleFavorite(channel)
-                val msg = if (added) "⭐ ${channel.name} favorites এ যোগ হয়েছে"
-                          else       "❌ ${channel.name} favorites থেকে সরানো হয়েছে"
+                val msg = if (added) "Favorites এ যোগ হয়েছে: ${channel.name}"
+                          else       "Favorites থেকে সরানো হয়েছে"
                 Snackbar.make(binding.root, msg, Snackbar.LENGTH_SHORT).show()
             },
             isFav = { channel -> viewModel.isFavorite(channel) }
@@ -60,11 +61,12 @@ class MainActivity : AppCompatActivity() {
         // Group filter chips
         viewModel.groups.observe(this) { groups ->
             binding.chipGroupFilter.removeAllViews()
-            groups.forEach { group ->
+            groups.forEachIndexed { index, group ->
                 val chip = Chip(this).apply {
                     text = group
                     isCheckable = true
-                    isChecked = group == "সব"
+                    isChecked = index == 0  // first = "সব"
+                    setEnsureMinTouchTargetSize(false)
                     setOnClickListener { viewModel.filterByGroup(group) }
                 }
                 binding.chipGroupFilter.addView(chip)
@@ -73,8 +75,8 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.channels.observe(this) { channels ->
             adapter.submitList(channels)
-            binding.tvEmpty.visibility   = if (channels.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvChannelCount.text  = "${channels.size} চ্যানেল"
+            binding.tvEmpty.visibility  = if (channels.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvChannelCount.text = "${channels.size} চ্যানেল"
         }
 
         viewModel.loading.observe(this) { isLoading ->
@@ -112,8 +114,7 @@ class MainActivity : AppCompatActivity() {
     private fun isNetworkAvailable(): Boolean {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val nw  = cm.activeNetwork ?: return false
-            val cap = cm.getNetworkCapabilities(nw) ?: return false
+            val cap = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
             cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } else {
             cm.activeNetworkInfo?.isConnected == true

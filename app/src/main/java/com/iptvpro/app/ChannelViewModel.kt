@@ -26,25 +26,26 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
     private val _groups = MutableLiveData<List<String>>()
     val groups: LiveData<List<String>> = _groups
 
-    private var allChannels   = listOf<Channel>()
-    private var searchQuery   = ""
-    private var activeGroup   = ""          // "" = All
+    private var allChannels = listOf<Channel>()
+    private var searchQuery = ""
+    private var activeGroup = ""
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .followRedirects(true)
+        .retryOnConnectionFailure(true)
         .build()
 
     fun loadChannels() {
         viewModelScope.launch {
             _loading.value = true
-            _error.value   = null
+            _error.value = null
             try {
                 val content = withContext(Dispatchers.IO) {
                     val req = Request.Builder()
                         .url(M3U8Parser.getM3U8Url())
-                        .header("User-Agent", "IPTV-Pro/1.0")
+                        .header("User-Agent", "IPTV-Pro/1.5")
                         .build()
                     client.newCall(req).execute().use { resp ->
                         if (!resp.isSuccessful) throw Exception("HTTP ${resp.code}")
@@ -52,13 +53,14 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 allChannels = M3U8Parser.parse(content)
-                val favIds  = FavoritesManager.getIds(getApplication())
-                // Put favorites on top
+
+                // Favorites সবার উপরে
+                val favIds = FavoritesManager.getIds(getApplication())
                 allChannels = allChannels.sortedByDescending { it.id in favIds }
 
-                val grpList = listOf("সব") + allChannels.map { it.group }.distinct()
-                _groups.value = grpList
+                _groups.value = listOf("সব") + allChannels.map { it.group }.distinct()
                 applyFilters()
+
             } catch (e: Exception) {
                 _error.value = "চ্যানেল লোড হয়নি: ${e.message}"
                 _channels.value = emptyList()
@@ -68,10 +70,7 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun search(query: String) {
-        searchQuery = query
-        applyFilters()
-    }
+    fun search(query: String) { searchQuery = query; applyFilters() }
 
     fun filterByGroup(group: String) {
         activeGroup = if (group == "সব") "" else group
@@ -80,7 +79,6 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleFavorite(channel: Channel): Boolean {
         val added = FavoritesManager.toggle(getApplication(), channel.id)
-        // Re-sort so favs stay on top
         val favIds = FavoritesManager.getIds(getApplication())
         allChannels = allChannels.sortedByDescending { it.id in favIds }
         applyFilters()
@@ -95,7 +93,9 @@ class ChannelViewModel(app: Application) : AndroidViewModel(app) {
         if (activeGroup.isNotBlank()) list = list.filter { it.group == activeGroup }
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase()
-            list = list.filter { it.name.lowercase().contains(q) || it.group.lowercase().contains(q) }
+            list = list.filter {
+                it.name.lowercase().contains(q) || it.group.lowercase().contains(q)
+            }
         }
         _channels.value = list
     }
